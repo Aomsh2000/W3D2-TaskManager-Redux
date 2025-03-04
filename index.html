@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/redux/4.1.2/redux.min.js"></script>
+</head>
+<body>
+    <h1>Task List</h1>
+    <div id="error"></div>
+    <form>
+    <button id="add" type="submit">Add Item</button>
+    <button id="update">Update Item</button>
+    <button id="remove">Remove Item</button>
+    <select id="task-status">
+        <option value="" disabled selected>Choose Status</option>
+        <option value="completed">Completed Tasks</option>
+        <option value="pending">Pending Tasks</option>
+    </select>
+    <input id="input" placeholder="Enter task" />
+    </form>
+    <ul id="list"></ul>
+
+    <script>
+        const list = document.getElementById("list");
+
+        // Function to load tasks from localStorage or fetch from API
+        function loadTasks() {
+            const tasksFromLocalStorage = JSON.parse(localStorage.getItem('tasks'));
+            if (tasksFromLocalStorage && tasksFromLocalStorage.length > 0) {
+                // Dispatch action to set tasks from localStorage
+                store.dispatch({
+                    type: 'SET_TASKS',
+                    tasks: tasksFromLocalStorage
+                });
+            } else {
+                // Fetch tasks from API if not found in localStorage
+                fetch("https://jsonplaceholder.typicode.com/todos?_limit=10")
+                    .then(response => response.json())
+                    .then(data => {
+                        // Save fetched tasks to localStorage
+                        localStorage.setItem('tasks', JSON.stringify(data));
+
+                        // Dispatch action to add fetched tasks to the store
+                        store.dispatch({
+                            type: 'SET_TASKS',
+                            tasks: data
+                        });
+                    })
+                    .catch(error => console.error("Error fetching data:", error));
+            }
+        }
+
+        // Initial state of the store
+        const initialState = {
+            tasks: []
+        };
+
+        // Reducer function
+        function manager(state = initialState, action) {
+            switch (action.type) {
+                case "SET_TASKS":
+                    return { ...state, tasks: action.tasks }; // Set tasks from API to the state
+                case "ADD_TASK":
+                    const addedState = { 
+                        ...state, 
+                        tasks: [...state.tasks, { title: action.title, completed: false }] 
+                    };
+                    // Save to localStorage
+                    localStorage.setItem('tasks', JSON.stringify(addedState.tasks));
+                    return addedState;
+                case "REMOVE_TASK":
+                    const removedState = {
+                        ...state,
+                        tasks: state.tasks.filter(task => task.title !== action.title)
+                    };
+                    // Save to localStorage
+                    localStorage.setItem('tasks', JSON.stringify(removedState.tasks));
+                    return removedState;
+                case "UPDATE_TASK":
+                    const updatedState = {
+                        ...state,
+                        tasks: state.tasks.map(task => 
+                            task.title === action.oldTitle ? { ...task, title: action.newTitle } : task
+                        )
+                    };
+                    // Save to localStorage
+                    localStorage.setItem('tasks', JSON.stringify(updatedState.tasks));
+                    return updatedState;
+                case "SET_TASKS_completed":
+                    const completedState =  {
+                        ...state,
+                        tasks: state.tasks.filter(task => task.completed === true)
+                    };
+                    return completedState;
+                case "SET_TASKS_pending":
+                    const pendingState = {
+                        ...state,
+                        tasks: state.tasks.filter(task => task.completed === false)
+                    };
+                    return pendingState;
+                default:
+                    return state;
+            }
+        }
+
+        // Create the Redux store
+        const store = Redux.createStore(manager);
+
+        // Update the UI based on the state
+        function updateUI() {
+            const state = store.getState();
+            list.innerHTML = ""; // Clear the list before re-rendering
+            state.tasks.forEach(task => {
+                const listItem = document.createElement("li");
+                listItem.textContent = `${task.title} : ${task.completed ? 'Completed' : 'Not Completed'}`;
+                list.appendChild(listItem);
+            });
+        }
+
+        // Subscribe to store updates to render the UI
+        store.subscribe(updateUI);
+
+        // Add event listeners for the buttons to dispatch actions
+
+        document.getElementById("add").addEventListener("click", (event) => {
+            event.preventDefault();  // Prevent form submission
+            const inputText = document.getElementById("input").value;
+            if (inputText && inputText.length >= 5) {
+                store.dispatch({
+                    type: "ADD_TASK",
+                    title: inputText
+                });
+                document.getElementById("input").value = ""; // Clear the input
+                document.getElementById("error").innerText = "";
+            } else {
+                document.getElementById("error").innerText = "Please enter valid task title";
+                document.getElementById("error").style.color = "red";
+            }
+        });
+
+        document.getElementById("remove").addEventListener("click", (event) => {
+            event.preventDefault(); // Prevent form submission
+            const inputText = document.getElementById("input").value;
+            if (inputText) {
+                store.dispatch({
+                    type: "REMOVE_TASK",
+                    title: inputText
+                });
+                document.getElementById("input").value = ""; // Clear the input
+            }
+        });
+
+        document.getElementById("update").addEventListener("click", (event) => {
+            event.preventDefault(); // Prevent form submission
+            const inputText = document.getElementById("input").value;
+            const newTitle = prompt("Enter new title:", inputText);
+            if (inputText && newTitle) {
+                store.dispatch({
+                    type: "UPDATE_TASK",
+                    oldTitle: inputText,
+                    newTitle: newTitle
+                });
+                document.getElementById("input").value = ""; // Clear the input
+            }
+        });
+
+        document.getElementById("task-status").addEventListener("change", function () {
+            var selectedValue = this.value;
+            if (selectedValue === "") {
+                // Show all tasks when no status is selected
+                loadTasks();
+            } else if (selectedValue === "completed") {
+                store.dispatch({
+                    type: 'SET_TASKS_completed',
+                });
+            } else if (selectedValue === "pending") {
+                store.dispatch({
+                    type: 'SET_TASKS_pending',
+                });
+            }
+        });
+
+        // Load tasks from localStorage or fetch from API
+        loadTasks();
+
+        // Initial UI update
+        updateUI();
+    </script>
+</body>
+</html>
